@@ -162,7 +162,7 @@ export interface OrderStatisticsQuery {
 export class CtYunClient {
   public static readonly VERSION = '204000100';
   public static readonly DEVICE_TYPE = '60';
-  public static readonly BASE_URL = 'https://desk.ctyun.cn:8810';
+  public static readonly BASE_URL = 'https://sh9b-deskmgr.ctyun.cn:8810';
   public readonly baseUrl = CtYunClient.BASE_URL;
 
   private deviceCode: string;
@@ -916,10 +916,13 @@ export class CtYunClient {
         if (json.code === 0) {
           return opNames[opType] || '电源控制指令已下发';
         }
-        // 特殊容错：若提示“只有已关机状态允许进行开机操作”或状态不符，平滑判定
+        // 30010 类"只有已关机状态允许开机"为业务拒绝: 实例并非已关机 (休眠态同样命中)，
+        // 上抛给调用方执行 on<->awake 互补回退，不得按"已在运行"平滑吞没 (否则休眠实例永远无法唤醒)。
+        const nonOffReject = json.code === 30010 || !!json.msg?.includes('已关机状态');
         if (
           (opType === 1 || opType === 18) &&
-          (json.code === 30010 || json.msg?.includes('已关机状态') || json.msg?.includes('已运行') || json.msg?.includes('已经处于') || json.msg?.includes('not suspended'))
+          !nonOffReject &&
+          (json.msg?.includes('已运行') || json.msg?.includes('已经处于') || json.msg?.includes('not suspended'))
         ) {
           return '云电脑已在运行中或处于可用状态';
         }
@@ -932,7 +935,7 @@ export class CtYunClient {
   }
 
   /** 官方积分中心 (selforder SPA) 的接口根地址 (该 SPA 不启用请求体加密) */
-  public static readonly SELFORDER_URL = 'https://desk.ctyun.cn/selforder';
+  public static readonly SELFORDER_URL = 'https://sh9b-deskmgr.ctyun.cn:8810';
 
   /**
    * 同步用户基础信息 (对齐官方积分中心 /selforder/api/auth/client/syncUserInfo)
